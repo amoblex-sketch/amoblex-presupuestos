@@ -1452,46 +1452,56 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 // Print helper: creates iframe with content and triggers print dialog
 function doPrint(contentEl, fileName) {
   if(!contentEl) return;
-  
-  // Get all inline styles from the element
+  const name = (fileName || "presupuesto") + ".pdf";
   const html = contentEl.outerHTML;
   
-  // Build clean print page
+  // Open clean window with content
   const printPage = `<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>${fileName || "Amoblex"}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'DM Sans',sans-serif; background:#fff; color:#333; }
-    .no-print { display:none !important; }
-    input, select, textarea, button { display:none !important; }
-    @media print {
-      @page { size:A4; margin:8mm; }
-      body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    }
-  </style>
+<meta charset="UTF-8">
+<title>${name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:#fff;color:#333}
+.no-print{display:none!important}
+input,select,textarea,button{display:none!important}
+#content{max-width:760px;margin:0 auto;padding:20px;background:#fff}
+#loading{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:999}
+#loading div{background:#fff;padding:30px 50px;border-radius:12px;text-align:center;font-family:sans-serif}
+table{width:100%!important;max-width:100%!important}
+svg{max-width:720px!important;height:auto!important}
+</style>
 </head>
 <body>
-  <div style="max-width:780px;margin:0 auto;padding:10px;">
-    ${html}
-  </div>
-  <script>
-    // Auto print after fonts load
-    document.fonts.ready.then(function(){
-      setTimeout(function(){ window.print(); }, 400);
+<div id="loading"><div><div style="font-size:18px;font-weight:700;margin-bottom:8px">Generando PDF...</div><div style="font-size:13px;color:#888">Descargando en unos segundos</div></div></div>
+<div id="content">${html}</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"><\/script>
+<script>
+document.fonts.ready.then(function(){
+  setTimeout(function(){
+    var el = document.getElementById('content');
+    var opt = {
+      margin: [6,4,6,4],
+      filename: '${name.replace(/'/g,"\\'")}',
+      image: {type:'jpeg',quality:0.92},
+      html2canvas: {scale:2,useCORS:true,logging:false,width:760,windowWidth:760},
+      jsPDF: {unit:'mm',format:'a4',orientation:'portrait'},
+      pagebreak: {mode:['avoid-all','css','legacy']}
+    };
+    html2pdf().set(opt).from(el).save().then(function(){
+      document.getElementById('loading').style.display='none';
+      document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;flex-direction:column;gap:12px"><div style="font-size:18px;font-weight:700;color:#16a34a">✅ PDF descargado</div><div style="font-size:13px;color:#888">Podés cerrar esta ventana</div><button onclick="window.close()" style="padding:8px 24px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;cursor:pointer;font-size:13px">Cerrar</button></div>';
     });
-  </script>
+  }, 600);
+});
+<\/script>
 </body>
 </html>`;
 
   const w = window.open('', '_blank');
-  if(w) {
-    w.document.write(printPage);
-    w.document.close();
-  }
+  if(w) { w.document.write(printPage); w.document.close(); }
 }
 
 
@@ -3449,7 +3459,7 @@ El porcentaje debe ser el número sin el símbolo %. Si no podés calcular el da
             <style>{`@media print { .no-print { display:none !important; } body { margin:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }`}</style>
             <div className="no-print" style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
               <button onClick={()=>setView("editPre")} style={btnO}>← Volver al editor</button>
-              <button onClick={()=>doPrint(printRef.current, pdfName)} style={{...btnG,fontSize:13}}>🖨️ Imprimir / Guardar PDF</button>
+              <button onClick={()=>doPrint(printRef.current, pdfName)} style={{...btnG,fontSize:13}}>📥 Descargar PDF</button>
             </div>
 
             <div ref={printRef} style={{background:"#fff",maxWidth:800,margin:"0 auto",padding:40,borderRadius:4,boxShadow:"0 2px 20px rgba(0,0,0,.08)",...ps}}>
@@ -3857,7 +3867,7 @@ El porcentaje debe ser el número sin el símbolo %. Si no podés calcular el da
           return <>
             <div style={{display:"flex",gap:8,marginBottom:12}} className="no-print">
               <button onClick={()=>setView("editPre")} style={btnO}>← Volver al editor</button>
-              <button onClick={()=>doPrint(printRef.current, planPdfName)} style={btnG}>🖨️ Imprimir / Guardar PDF</button>
+              <button onClick={()=>doPrint(printRef.current, planPdfName)} style={btnG}>📥 Descargar PDF</button>
               {planEdits[pre.id] && <button onClick={()=>setPlanEdits(p=>{const n={...p};delete n[pre.id];return n;})} style={btnO}>↺ Reset edits</button>}
             </div>
             <div ref={printRef} style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 4px 20px rgba(0,0,0,.08)",maxWidth:800,margin:"0 auto"}}>
@@ -5079,7 +5089,7 @@ El porcentaje debe ser el número sin el símbolo %. Si no podés calcular el da
               }).filter(Boolean);
 
               return <>
-                <Sec icon="🛒" title="Orden de Compra Combinada" right={<div style={{display:"flex",gap:6}}><button onClick={toggleAll} className="no-print" style={btnO}>{allChecked?"Desmarcar":"✓ Marcar"} todos</button><button onClick={()=>doPrint(printRef.current, "Orden de Compra " + new Date().toLocaleDateString("es-AR").replace(/\//g,"-"))} className="no-print" style={btnG}>🖨️ Imprimir / Guardar PDF</button></div>}/>
+                <Sec icon="🛒" title="Orden de Compra Combinada" right={<div style={{display:"flex",gap:6}}><button onClick={toggleAll} className="no-print" style={btnO}>{allChecked?"Desmarcar":"✓ Marcar"} todos</button><button onClick={()=>doPrint(printRef.current, "Orden de Compra " + new Date().toLocaleDateString("es-AR").replace(/\//g,"-"))} className="no-print" style={btnG}>📥 Descargar PDF</button></div>}/>
                 <div ref={printRef} style={{...card,border:`2px solid ${G}`}}>
                   <div style={{textAlign:"center",marginBottom:12}}>
                     <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:900,color:D}}>ORDEN DE COMPRA</div>
@@ -5393,7 +5403,7 @@ El porcentaje debe ser el número sin el símbolo %. Si no podés calcular el da
           return <>
             <div className="no-print" style={{display:"flex",gap:8,marginBottom:16}}>
               <button onClick={()=>setView("promob")} style={btnO}>← Volver</button>
-              <button onClick={()=>doPrint(printRef.current, manPdfName)} style={{...btnG,fontSize:13}}>🖨️ Imprimir / Guardar PDF</button>
+              <button onClick={()=>doPrint(printRef.current, manPdfName)} style={{...btnG,fontSize:13}}>📥 Descargar PDF</button>
             </div>
             <div ref={printRef} style={{background:"#fff",maxWidth:800,margin:"0 auto",padding:40,borderRadius:4,boxShadow:"0 2px 20px rgba(0,0,0,.08)",...ps}}>
               {/* HEADER AMOBLEX */}

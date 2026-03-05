@@ -1460,59 +1460,71 @@ function doPrint(contentEl, fileName) {
   document.body.appendChild(overlay);
 
   const doGenerate = () => {
-    // Create a wrapper div with fixed width
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:fixed;left:0;top:0;width:794px;background:#fff;z-index:-9999;overflow:visible;padding:0;margin:0;';
+    // Get HTML content with all inline styles preserved
+    const htmlContent = contentEl.outerHTML;
     
-    // Clone content into wrapper
-    const clone = contentEl.cloneNode(true);
-    clone.style.width = '794px';
-    clone.style.maxWidth = '794px';
-    clone.style.padding = '30px';
-    clone.style.margin = '0';
-    clone.style.background = '#fff';
-    clone.style.boxShadow = 'none';
-    clone.style.borderRadius = '0';
-    clone.style.overflow = 'visible';
-    clone.style.maxHeight = 'none';
-    
-    // Remove no-print elements
-    clone.querySelectorAll('.no-print').forEach(el => el.remove());
-    
-    // Fix any tables that might overflow
-    clone.querySelectorAll('table').forEach(t => { t.style.width = '100%'; t.style.tableLayout = 'auto'; });
-    clone.querySelectorAll('svg').forEach(s => { s.style.maxWidth = '100%'; s.style.height = 'auto'; });
-    
-    wrapper.appendChild(clone);
-    document.body.appendChild(wrapper);
+    // Build a standalone HTML page
+    const fullPage = `<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'DM Sans',sans-serif; background:#fff; width:760px; margin:0; padding:0; }
+        .no-print { display:none !important; }
+        table { width:100% !important; }
+        svg { max-width:100%; height:auto; }
+        input, select, button { display:none !important; }
+      </style>
+    </head><body>
+      <div style="width:760px;padding:20px;background:#fff;">
+        ${htmlContent}
+      </div>
+    </body></html>`;
 
-    // Wait for rendering
+    // Use html2pdf with string input
+    const opt = {
+      margin: [5, 3, 5, 3],
+      filename: name,
+      image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        logging: false,
+        width: 800,
+        windowWidth: 800,
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    // Create a temporary iframe for isolated rendering
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;border:none;';
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(fullPage);
+    iframeDoc.close();
+
+    // Wait for fonts and images to load
     setTimeout(() => {
-      const opt = {
-        margin: [6, 4, 6, 4],
-        filename: name,
-        image: { type: 'jpeg', quality: 0.92 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          logging: false, 
-          width: 794,
-          windowWidth: 794,
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      };
-
-      window.html2pdf().set(opt).from(clone).save().then(() => {
-        document.body.removeChild(wrapper);
+      const target = iframeDoc.body.querySelector('div') || iframeDoc.body;
+      
+      window.html2pdf().set(opt).from(target).save().then(() => {
+        document.body.removeChild(iframe);
         document.body.removeChild(overlay);
       }).catch(err => {
         console.error('PDF error:', err);
-        try { document.body.removeChild(wrapper); } catch(e){}
+        try { document.body.removeChild(iframe); } catch(e){}
         document.body.removeChild(overlay);
-        showToast('Error generando PDF: ' + err.message,'error');
+        // Fallback: open print dialog
+        try {
+          const w = window.open('','_blank');
+          if(w) { w.document.write(fullPage); w.document.close(); setTimeout(()=>w.print(), 500); }
+        } catch(e2){}
       });
-    }, 300);
+    }, 800);
   };
 
   if(window.html2pdf) {
@@ -1523,7 +1535,8 @@ function doPrint(contentEl, fileName) {
     script.onload = () => setTimeout(doGenerate, 100);
     script.onerror = () => {
       document.body.removeChild(overlay);
-      showToast('No se pudo cargar librería PDF','error');
+      // Fallback: browser print
+      try { window.print(); } catch(e){}
     };
     document.head.appendChild(script);
   }

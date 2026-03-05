@@ -1451,7 +1451,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 
 // Print helper: creates iframe with content and triggers print dialog
 function doPrint(contentEl, fileName) {
-  if(!contentEl) return;
+  if(!contentEl) { console.error("No content element"); return; }
   const name = (fileName || "presupuesto") + ".pdf";
   
   // Show loading indicator
@@ -1461,45 +1461,56 @@ function doPrint(contentEl, fileName) {
   document.body.appendChild(overlay);
 
   const doGenerate = () => {
-    // Clone the element to avoid modifying the original
-    const clone = contentEl.cloneNode(true);
-    // Remove no-print elements from clone
-    clone.querySelectorAll('.no-print').forEach(el => el.remove());
-    // Temporarily add clone to body for rendering
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.top = '0';
-    clone.style.width = '800px';
-    clone.style.background = '#fff';
-    document.body.appendChild(clone);
+    // Use the element directly (no clone) but temporarily adjust for capture
+    const origOverflow = contentEl.style.overflow;
+    const origMaxH = contentEl.style.maxHeight;
+    contentEl.style.overflow = 'visible';
+    contentEl.style.maxHeight = 'none';
+    
+    // Hide no-print elements temporarily
+    const noPrintEls = contentEl.querySelectorAll('.no-print');
+    noPrintEls.forEach(el => el.style.display = 'none');
 
     const opt = {
-      margin: [8, 8, 8, 8],
+      margin: [8, 6, 8, 6],
       filename: name,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, width: 800 },
+      image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        logging: false, 
+        width: contentEl.scrollWidth,
+        windowWidth: contentEl.scrollWidth,
+        scrollY: 0,
+        scrollX: 0,
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all','css','legacy'] }
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    window.html2pdf().set(opt).from(clone).save().then(() => {
-      document.body.removeChild(clone);
+    window.html2pdf().set(opt).from(contentEl).save().then(() => {
+      // Restore
+      noPrintEls.forEach(el => el.style.display = '');
+      contentEl.style.overflow = origOverflow;
+      contentEl.style.maxHeight = origMaxH;
       document.body.removeChild(overlay);
     }).catch(err => {
       console.error('PDF error:', err);
-      document.body.removeChild(clone);
+      noPrintEls.forEach(el => el.style.display = '');
+      contentEl.style.overflow = origOverflow;
+      contentEl.style.maxHeight = origMaxH;
       document.body.removeChild(overlay);
-      showToast('Error generando PDF','error');
+      showToast('Error generando PDF: ' + err.message,'error');
     });
   };
 
   // Load html2pdf.js dynamically if not loaded
   if(window.html2pdf) {
-    doGenerate();
+    setTimeout(doGenerate, 100); // Small delay for rendering
   } else {
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js';
-    script.onload = doGenerate;
+    script.onload = () => setTimeout(doGenerate, 200);
     script.onerror = () => {
       document.body.removeChild(overlay);
       showToast('No se pudo cargar librería PDF','error');

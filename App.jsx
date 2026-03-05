@@ -1451,66 +1451,76 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 
 // Print helper: creates iframe with content and triggers print dialog
 function doPrint(contentEl, fileName) {
-  if(!contentEl) { console.error("No content element"); return; }
+  if(!contentEl) return;
   const name = (fileName || "presupuesto") + ".pdf";
   
-  // Show loading indicator
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:99999;';
   overlay.innerHTML = '<div style="background:#fff;padding:30px 50px;border-radius:12px;text-align:center;font-family:sans-serif;"><div style="font-size:18px;font-weight:700;margin-bottom:8px;">Generando PDF...</div><div style="font-size:13px;color:#888;">Esto puede tardar unos segundos</div></div>';
   document.body.appendChild(overlay);
 
   const doGenerate = () => {
-    // Use the element directly (no clone) but temporarily adjust for capture
-    const origOverflow = contentEl.style.overflow;
-    const origMaxH = contentEl.style.maxHeight;
-    contentEl.style.overflow = 'visible';
-    contentEl.style.maxHeight = 'none';
+    // Create a wrapper div with fixed width
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:0;top:0;width:794px;background:#fff;z-index:-9999;overflow:visible;padding:0;margin:0;';
     
-    // Hide no-print elements temporarily
-    const noPrintEls = contentEl.querySelectorAll('.no-print');
-    noPrintEls.forEach(el => el.style.display = 'none');
+    // Clone content into wrapper
+    const clone = contentEl.cloneNode(true);
+    clone.style.width = '794px';
+    clone.style.maxWidth = '794px';
+    clone.style.padding = '30px';
+    clone.style.margin = '0';
+    clone.style.background = '#fff';
+    clone.style.boxShadow = 'none';
+    clone.style.borderRadius = '0';
+    clone.style.overflow = 'visible';
+    clone.style.maxHeight = 'none';
+    
+    // Remove no-print elements
+    clone.querySelectorAll('.no-print').forEach(el => el.remove());
+    
+    // Fix any tables that might overflow
+    clone.querySelectorAll('table').forEach(t => { t.style.width = '100%'; t.style.tableLayout = 'auto'; });
+    clone.querySelectorAll('svg').forEach(s => { s.style.maxWidth = '100%'; s.style.height = 'auto'; });
+    
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
 
-    const opt = {
-      margin: [8, 6, 8, 6],
-      filename: name,
-      image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true, 
-        logging: false, 
-        width: contentEl.scrollWidth,
-        windowWidth: contentEl.scrollWidth,
-        scrollY: 0,
-        scrollX: 0,
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
+    // Wait for rendering
+    setTimeout(() => {
+      const opt = {
+        margin: [6, 4, 6, 4],
+        filename: name,
+        image: { type: 'jpeg', quality: 0.92 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          logging: false, 
+          width: 794,
+          windowWidth: 794,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
 
-    window.html2pdf().set(opt).from(contentEl).save().then(() => {
-      // Restore
-      noPrintEls.forEach(el => el.style.display = '');
-      contentEl.style.overflow = origOverflow;
-      contentEl.style.maxHeight = origMaxH;
-      document.body.removeChild(overlay);
-    }).catch(err => {
-      console.error('PDF error:', err);
-      noPrintEls.forEach(el => el.style.display = '');
-      contentEl.style.overflow = origOverflow;
-      contentEl.style.maxHeight = origMaxH;
-      document.body.removeChild(overlay);
-      showToast('Error generando PDF: ' + err.message,'error');
-    });
+      window.html2pdf().set(opt).from(clone).save().then(() => {
+        document.body.removeChild(wrapper);
+        document.body.removeChild(overlay);
+      }).catch(err => {
+        console.error('PDF error:', err);
+        try { document.body.removeChild(wrapper); } catch(e){}
+        document.body.removeChild(overlay);
+        showToast('Error generando PDF: ' + err.message,'error');
+      });
+    }, 300);
   };
 
-  // Load html2pdf.js dynamically if not loaded
   if(window.html2pdf) {
-    setTimeout(doGenerate, 100); // Small delay for rendering
+    doGenerate();
   } else {
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js';
-    script.onload = () => setTimeout(doGenerate, 200);
+    script.onload = () => setTimeout(doGenerate, 100);
     script.onerror = () => {
       document.body.removeChild(overlay);
       showToast('No se pudo cargar librería PDF','error');
@@ -3885,7 +3895,7 @@ El porcentaje debe ser el número sin el símbolo %. Si no podés calcular el da
               <button onClick={()=>doPrint(printRef.current, planPdfName)} style={btnG}>📥 Descargar PDF</button>
               {planEdits[pre.id] && <button onClick={()=>setPlanEdits(p=>{const n={...p};delete n[pre.id];return n;})} style={btnO}>↺ Reset edits</button>}
             </div>
-            <div ref={printRef} style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 4px 20px rgba(0,0,0,.08)",maxWidth:900,margin:"0 auto"}}>
+            <div ref={printRef} style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 4px 20px rgba(0,0,0,.08)",maxWidth:800,margin:"0 auto"}}>
               <div style={{textAlign:"center",marginBottom:20}}>
                 <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:900,color:D}}>PLANILLA DE MATERIALES</div>
                 <div style={{fontSize:12,color:"#8a7d6b",marginTop:4}}>Presupuesto #{pre.numero} — {cl?.nombre||""} — {pre.fecha}</div>

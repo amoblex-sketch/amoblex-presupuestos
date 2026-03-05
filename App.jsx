@@ -2145,17 +2145,14 @@ El porcentaje debe ser el número sin el símbolo %. Si no podés calcular el da
   const updTapa = (u,k,v)=>updPre(pre.id,{tapasTerminacion:(pre.tapasTerminacion||[]).map(t=>t.uid===u?{...t,[k]:v}:t)});
   const rmTapa = (u)=>updPre(pre.id,{tapasTerminacion:(pre.tapasTerminacion||[]).filter(t=>t.uid!==u)});
 
-  // Session persistence
-  useEffect(() => { 
-    (async()=>{ const u = await sGet("v2user", null); if(u && USERS.find(x=>x.id===u.id)) setUser(u); })(); 
-  }, []);
+  // No auto-login — always require password for security
   const doLogin = (u, pinOverride)=>{
     const pin = pinOverride || loginPin;
-    if(pin !== u.pin) { setLoginErr("PIN incorrecto"); setLoginPin(""); setTimeout(()=>setLoginErr(""),2000); return; }
+    if(pin !== u.pin) { setLoginErr("Contraseña incorrecta"); setLoginPin(""); setTimeout(()=>setLoginErr(""),2000); return; }
     const sess = {id:u.id, nombre:u.nombre, rol:u.rol};
-    setUser(sess); sSet("v2user", sess); setLoginPin(""); setLoginUser(null); setLoginErr("");
+    setUser(sess); setLoginPin(""); setLoginUser(null); setLoginErr("");
   };
-  const doLogout = ()=>{ setUser(null); sSet("v2user", null); setView("clientes"); };
+  const doLogout = ()=>{ setUser(null); setView("clientes"); };
   const isAdmin = user?.rol === "admin";
 
   if (!ready) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif",color:"#8a7d6b"}}>Cargando...</div>;
